@@ -1,10 +1,13 @@
 from django.shortcuts import get_object_or_404, render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
 from django.views import generic
 from django.utils import timezone
+import datetime
+import pandas as pd
+from django_pandas.io import read_frame
 
-from .models import Choice, Question
+from .models import Choice, Question, Votes
 
 
 class IndexView(generic.ListView):
@@ -31,10 +34,16 @@ class DetailView(generic.DetailView):
         """
         return Question.objects.filter(pub_date__lte=timezone.now())
 
-
 class ResultsView(generic.DetailView):
     model = Question
     template_name = 'polls/results.html'
+    
+    
+    # Added function for retrieving votes and passing to template as context
+    def get_context_data(self, **kwargs):
+        votes_context = getVotes(pk=self.kwargs['pk'])
+        return votes_context
+
 
 
 def vote(request, question_id):
@@ -50,7 +59,74 @@ def vote(request, question_id):
     else:
         selected_choice.votes += 1
         selected_choice.save()
+        
+        # Added functionality for saving a vote
+        vote_time = floor_dt(datetime.datetime.now() + datetime.timedelta(hours=1), 1)
+        vote = Votes(question=question, choice=selected_choice, vote_time = vote_time)      
+        vote.save()
+
         # Always return an HttpResponseRedirect after successfully dealing
         # with POST data. This prevents data from being posted twice if a
         # user hits the Back button.
-        return HttpResponseRedirect(reverse('polls:results', args=(question.id,)))
+        return HttpResponseRedirect(reverse('polls:results', args=(question.id, )))
+
+
+
+
+# Solution 1 - shows in results.html using template in inclueds/table.html
+# function for retrieving votes objects, parsing and creating context for table
+def getVotes(pk):
+    context ={}
+    context["dataset"] = Votes.objects.filter(question_id = pk)
+    context["question"] = context["dataset"][0].question
+    context["choices"] = set(ch.choice for ch in [v for v in context["dataset"]])
+    votes=[{"time": context["dataset"][0].vote_time.strftime("%y/%m/%d, %H:%M")}]
+    i=0
+    for vote in context["dataset"]:
+        if votes[i]["time"] != vote.vote_time.strftime("%y/%m/%d, %H:%M"):
+            i+=1
+            votes.append({"time": vote.vote_time.strftime("%y/%m/%d, %H:%M")})
+        for choice in context["choices"]:
+            if votes[i].get(str(choice)) == None:
+                votes[i][str(choice)] = 0
+            if choice == vote.choice:
+                votes[i][str(choice)] +=1
+    context["votes"] = votes
+    return context
+
+
+
+
+# Solution 2 - using pandas dataframe - prepared for filtering and group by functionality
+#           - not finished yet
+#           - presents in own votes_list.html: path('<int:pk>/votes/', views.showVotes, name='votes'), 
+def showVotes(request, pk):
+    try:
+        item = Votes.objects.filter(question_id = pk)
+        df = read_frame(item, fieldnames=['vote_time', 'choice'] )
+        choices = pd.Series(df['choice']).drop_duplicates().tolist()
+        all_votes = []
+        for _, time, vote in df.itertuples():
+            vote_info = {'Time': time.strftime("%y/%m/%d  %H:%M")}
+            for choice in choices:
+                if vote == choice:
+                    vote_info[choice] = 1
+                else:
+                    vote_info[choice] = 0
+            all_votes.append(vote_info)
+        votes = pd.DataFrame(all_votes, index=[i for i in range(len(all_votes))])
+        grouped_votes = votes.groupby(votes['Time']).sum()
+        sorted_votes = grouped_votes.sort_values(by=['Time'], ascending=False)
+        mydict = {
+            "df": sorted_votes.to_html().replace('<td>', '<td align="center">')
+        }
+        return render(request, "polls/votes_list.html", context=mydict)
+    except:
+        return render(request, "polls/votes_list.html", context=None)
+
+
+
+# function to round time of vote to minutes
+def floor_dt(dt, interval):
+    replace = (dt.minute // interval)*interval
+    return dt.replace(minute = replace, second=0, microsecond=0)

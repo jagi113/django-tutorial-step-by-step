@@ -1,9 +1,19 @@
 <h1>{{ question.question_text }}</h1>
 
 <ul>
-{% for choice in question.choice_set.all %}
-    <li>{{ choice.choice_text }} -- {{ choice.votes }} vote{{ choice.votes|pluralize }}</li>
-{% endfor %}
+  {% for choice in question.choice_set.all %}
+  <li>
+    {{ choice.choice_text }} -- {{ choice.votes }}
+    vote{{choice.votes|pluralize}}
+  </li>
+  {% endfor %}
 </ul>
 
 <a href="{% url 'polls:detail' question.id %}">Vote again?</a>
+
+<hr />
+
+{# added table part #} {% if votes %} {% include 'polls/includes/table.html'%}
+{% else %}
+<h3>There are no votes to be presented yet!</h3>
+{% endif %}

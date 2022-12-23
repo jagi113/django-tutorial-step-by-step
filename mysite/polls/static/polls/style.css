@@ -5,3 +5,18 @@ li a {
 body {
     background: white url("images/background.gif") no-repeat right bottom;
 }
+
+table {
+ border-collapse: collapse;
+}
+  
+table tr {
+    border-bottom: 1px solid black;
+}
+  
+table tr:last-child {
+    border: 0;
+}
+table td, table th{
+    text-align: center
+}

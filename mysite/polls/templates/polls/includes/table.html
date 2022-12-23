@@ -1,0 +1,18 @@
+<table style="text-align: center">
+  <thead>
+    <tr>
+      <th>Time</th>
+      {% for choice in choices %}
+      <th>{{ choice }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for vote in votes %}
+  <tr>
+    {% for key, val in vote.items %}
+    <td>{{ val }}</td>
+
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>

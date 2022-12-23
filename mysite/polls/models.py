@@ -26,3 +26,23 @@ class Choice(models.Model):
 
     def __str__(self):
         return self.choice_text
+
+
+class Votes(models.Model):
+    def floor_dt(dt, interval):
+        replace = (dt.minute // interval)*interval
+        return dt.replace(minute = replace, second=0, microsecond=0)
+    
+    question = models.ForeignKey(
+        Question, related_name="question", on_delete=models.CASCADE)
+    choice = models.ForeignKey(
+        Choice, related_name="choice", on_delete=models.CASCADE)
+    vote_time = models.DateTimeField(default=floor_dt(datetime.datetime.now(), 1))
+
+    def __str__(self):
+        return self.vote_time.strftime("%m/%d/%Y, %H:%M:%S")
+    
+    class Meta:
+        ordering = ['vote_time']
+        
+
