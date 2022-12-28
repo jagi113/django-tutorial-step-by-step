@@ -1,3 +1,6 @@
+{% if df %} {{df|safe}} {% else %}
+<h3>There are no votes to be presented yet!</h3>
+{% endif %} {%comment%}
 <table style="text-align: center">
   <thead>
     <tr>
@@ -16,3 +19,4 @@
   </tr>
   {% endfor %}
 </table>
+{%endcomment%}

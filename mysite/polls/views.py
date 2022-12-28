@@ -36,11 +36,14 @@ class DetailView(generic.DetailView):
 
     # Added function for retrieving votes and passing to template as context
     def get_context_data(self, **kwargs):
+        context = super(DetailView, self).get_context_data(**kwargs)
         try:
-            votes_context = getVotes(pk=self.kwargs['pk'])
-            return votes_context
+            votes_context = getPdVotes(
+                pk=self.kwargs['pk'], order=self.kwargs['order'], url='')
+            context.update(votes_context)
+            return context
         except:
-            return Question.objects.filter(pub_date__lte=timezone.now())
+            return context
 
 
 class ResultsView(generic.DetailView):
@@ -48,13 +51,18 @@ class ResultsView(generic.DetailView):
     template_name = 'polls/results.html'
 
     # Added function for retrieving votes and passing to template as context
-
     def get_context_data(self, **kwargs):
-        votes_context = getVotes(pk=self.kwargs['pk'])
-        return votes_context
+        context = super(ResultsView, self).get_context_data(**kwargs)
+        try:
+            votes_context = getPdVotes(
+                pk=self.kwargs['pk'], order=self.kwargs['order'], url='results/')
+            context.update(votes_context)
+            return context
+        except:
+            return context
 
 
-def vote(request, question_id):
+def vote(request, question_id, order):
     question = get_object_or_404(Question, pk=question_id)
     try:
         selected_choice = question.choice_set.get(pk=request.POST['choice'])
@@ -78,66 +86,41 @@ def vote(request, question_id):
         # Always return an HttpResponseRedirect after successfully dealing
         # with POST data. This prevents data from being posted twice if a
         # user hits the Back button.
-        return HttpResponseRedirect(reverse('polls:results', args=(question.id, )))
+        return HttpResponseRedirect(reverse('polls:results', args=(question.id, order)))
 
 
-# Solution 1 - shows in results.html using template in inclueds/table.html
-# function for retrieving votes objects, parsing and creating context for table
-def getVotes(pk):
-    context = {}
-    context["dataset"] = Votes.objects.filter(question_id=pk)
-    context["question"] = context["dataset"][0].question
-    context["choices"] = set(ch.choice for ch in [
-                             v for v in context["dataset"]])
-    votes = [{"time": context["dataset"]
-              [0].vote_time.strftime("%y/%m/%d, %H:%M")}]
-    i = 0
-    for vote in context["dataset"]:
-        if votes[i]["time"] != vote.vote_time.strftime("%y/%m/%d, %H:%M"):
-            i += 1
-            votes.append({"time": vote.vote_time.strftime("%y/%m/%d, %H:%M")})
-        for choice in context["choices"]:
-            if votes[i].get(str(choice)) == None:
-                votes[i][str(choice)] = 0
-            if choice == vote.choice:
-                votes[i][str(choice)] += 1
-    context["votes"] = votes
-    return context
-
-
-# Solution 2 - using pandas dataframe with group by functionality
-#           - presents in own votes_list.html: path('<int:pk>/votes/<str:order>', views.showVotes, name='votes'),
-#           - http://127.0.0.1:8000/polls/1/votes/Time/
-def showVotes(request, pk=1, order='Time'):
-    try:
-        item = Votes.objects.filter(question_id=pk)
-        df = read_frame(item, fieldnames=['vote_time', 'choice'])
-        choices = pd.Series(df['choice']).drop_duplicates().tolist()
-        all_votes = []
-        for _, time, vote in df.itertuples():
-            vote_info = {make_clickable(
-                pk, 'Time'): time.strftime("%y/%m/%d  %H:%M")}
-            for choice in choices:
-                if vote == choice:
-                    vote_info[make_clickable(pk, choice)] = 1
-                else:
-                    vote_info[make_clickable(pk, choice)] = 0
-            all_votes.append(vote_info)
-        votes = pd.DataFrame(
-            all_votes, index=[i for i in range(len(all_votes))])
-        grouped_votes = votes.groupby(
-            votes[f"<a href='/polls/{pk}/votes/Time/'>Time</a>"]).sum()
-
-        sorted_votes = grouped_votes.sort_values(
-            by=[f"<a href='/polls/{pk}/votes/{order}/'>{order}</a>"], ascending=False)
-
-        mydict = {
-            "df": sorted_votes.to_html(escape=False).replace('<td>', '<td align="center">'),
-            "question_id": pk,
-        }
-        return render(request, "polls/votes_list.html", mydict)
-    except:
-        return render(request, "polls/votes_list.html", context=None)
+# - function getPdVotes presents table of votes in pandas dataframe converted to HTML
+# - function getPdVotes is called within DetailView and ResultsView classes (views.py)
+# - function loads all votes for needed question, parses all saved choices and times of votes
+# - for each loaded row it creates a new dataset row with:
+#      time key and value of vote time
+#      key for each case of saved choice (alphabeticaly ordered) - for each choice value equal to vote it adds +1
+#      - if time value of the following row is the same as time value of previous one, it does not create a new dataset row but modifies values of choices of the same dataset row
+# - keys for each values are links, so table is possible to order by clicking on column-headers
+def getPdVotes(url, pk=1, order='Time'):
+    item = Votes.objects.filter(question_id=pk)
+    df = read_frame(item, fieldnames=['vote_time', 'choice'])
+    choices = pd.Series(df['choice']).drop_duplicates().tolist()
+    all_votes = []
+    for _, time, vote in df.itertuples():
+        vote_info = {make_clickable(
+            pk, 'Time', url): time.strftime("%y/%m/%d  %H:%M")}
+        for choice in choices:
+            if vote == choice:
+                vote_info[make_clickable(pk, choice, url)] = 1
+            else:
+                vote_info[make_clickable(pk, choice, url)] = 0
+        all_votes.append(vote_info)
+    votes = pd.DataFrame(
+        all_votes, index=[i for i in range(len(all_votes))])
+    grouped_votes = votes.groupby(
+        votes[f"<a href='/polls/{pk}/{url}Time/'>Time</a>"]).sum()
+    sorted_votes = grouped_votes.sort_values(
+        by=[f"<a href='/polls/{pk}/{url}{order}/'>{order}</a>"], ascending=False)
+    mydict = {
+        "df": sorted_votes.to_html(escape=False).replace('<td>', '<td align="center">'),
+    }
+    return mydict
 
 
 # function to round time of vote to minutes
@@ -147,5 +130,5 @@ def floor_dt(dt, interval):
 
 
 # function to create headers with url sorting
-def make_clickable(pk, val):
-    return f"<a href='/polls/{pk}/votes/{val}/'>{val}</a>"
+def make_clickable(pk, val, url):
+    return f"<a href='/polls/{pk}/{url}{val}/'>{val}</a>"

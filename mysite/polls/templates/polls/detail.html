@@ -3,7 +3,10 @@
 {% if error_message %}
 <p><strong>{{ error_message }}</strong></p>
 {% endif %}
-<form action="{% url 'polls:vote' question.id %}" method="post">
+<form
+  action="{% url 'polls:vote' question_id=question.id order='Time' %}"
+  method="post"
+>
   {% csrf_token %} {% for choice in question.choice_set.all %}
   <input
     type="radio"
@@ -16,10 +19,7 @@
   {% endfor %}
   <input type="submit" value="Vote" />
 </form>
-
+{% if not error_message %}
 <hr />
 
-{# added table part #} {% if votes %} {% include 'polls/includes/table.html'%}
-{% else %}
-<h3>There are no votes to be presented yet!</h3>
-{% endif %}
+{# added table part#} {% include 'polls/includes/table.html'%} {% endif %}
