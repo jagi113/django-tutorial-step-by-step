@@ -16,3 +16,10 @@
   {% endfor %}
   <input type="submit" value="Vote" />
 </form>
+
+<hr />
+
+{# added table part #} {% if votes %} {% include 'polls/includes/table.html'%}
+{% else %}
+<h3>There are no votes to be presented yet!</h3>
+{% endif %}

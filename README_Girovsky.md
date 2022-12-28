@@ -13,7 +13,7 @@ Original project was edited in following manner:
      key for each case of saved choice (alphabeticaly ordered) - for each choice value equal to vote it adds +1 - if time value of the following row is the same as time value of previous one, it does not create a new dataset row but modifies values of choices of the same dataset row
    - new dataset is passed to context under votes key
 
-4. For better functionality (filtering and ordering) I created second solution using pandas dataframes
-   - solution present table using votes_list.html template and can be seen on path('< int:pk>/votes/', views.showVotes, name='votes'),
+4. For better functionality (filtering and ordering) I created second solution showVotes using pandas dataframes
+   - solution present table using votes_list.html template and can be seen on path('< int:pk>/votes/< str:order>/', views.showVotes, name='votes'),
    - principle of parsing is similar as in first solution
-   - interactive ordering and filtering is not added yet
+   - interactive ordering is added
